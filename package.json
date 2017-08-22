@@ -14,5 +14,12 @@
     "cryptobot"
   ],
   "author": "Armando Toledo",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^4.0.0",
+    "mysql": "^2.14.1",
+    "nodemailer": "^4.0.1",
+    "request": "^2.81.0",
+    "twit": "^2.2.9"
+  }
 }
