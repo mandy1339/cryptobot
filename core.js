@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////
 // 
 //  Author: Armando L. Toledo
-//  Last Updated: 08/22/2017
+//  Last Updated: 08/23/2017
 //
 ////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////
@@ -13,10 +13,31 @@ var Twit = require('twit');                 // twitter support
 var request = require('request');           // http request support
 var mailer = require('nodemailer');         // email support
 var db = require('mysql');                  // mysql support
+var twilio = require('twilio');             // sms support
 
 var ethVal;             // Hold the value of eth in USD
 var btcVal;             // Hold the value of btc in USD
 var traders = [];       // This will be a vector of trader objects
+
+
+
+
+
+
+// SET UP TWILIO (SMS)
+//==================================================================
+//==================================================================
+var twilio = require('twilio');
+var client = new twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+// Example twilio usage to send sms
+// client.messages.create({
+//     body: 'Hello from Node for real',
+//     to: '+17864475287',  // Text this number
+//     from: '+17865046824' // From a valid Twilio number
+// })
+// .then(function(message) {console.log(message.status)});
+
 
 
 
@@ -115,11 +136,9 @@ var connection = db.createConnection({
 // ENTRY POINT (MAIN)
 //==================================================================
 //==================================================================
+setInterval(scanAlert, 60000);
+
 function scanAlert() {
-   
-
-
-
     // Get eth val
     request.get('https://api.etherscan.io/api?module=stats&action=ethprice&apikey=YourApiKeyToken', function(error, response, body) {
         if(error) {console.log('error: \n', error); return}
@@ -144,12 +163,6 @@ function scanAlert() {
     })
 
 
-
-
-
-
-
-
     // Perform scan
     setTimeout(delayed, 1000);
     function delayed() {
@@ -169,44 +182,38 @@ function scanAlert() {
             }
         })
     }
-    
-
-
-
-
-
-// // Example mysql usage
-// var queryAddTrader = `SELECT * FROM trader WHERE email = 'mandy1339@gmail.com';`;
-// connection.query(queryAddTrader, function(error, rows, columns) {
-//     if(error){console.log(error); return;}; // if error return immediatelly
-//     console.log('\n\n\nquery result rows: ',rows);
-//     console.log('\n\n\nquery result columns: ',columns);
-// });
-
-
-
-
-
 }
 
-setInterval(scanAlert, 60000)
+
 
 
 
 
 
 // ALERT FUNCTIONS
+//==================================================================
+//==================================================================
+
+
+
 
 // ALERT USER ETH LOW()
 function alertUserEthLow(trader) {
     console.log('alerting user about eth low: ', trader);
-    if(trader.twit_acc) {       // twit user
-        
+    if(trader.twit_acc) {       // <- - - - - - - TWIT user
+        T.post('statuses/update', { status: `@${trader.twit_acc} Ethereum went down in price. It's under ${trader.ethlow}` }, function(err, data, response) {
+            console.log(response.statusCode, ' ', response.statusMessage);
+        })
     }
-    if(trader.phone) {          // sms user
-        
+    if(trader.phone) {          // <- - - - - - - SMS user
+        client.messages.create({
+            body: `${trader.first_name} Ethereum went down in price. It's under ${trader.ethlow}`,
+            to: '+17864475287',  // Text this number
+            from: '+17865046824' // From a valid Twilio number
+        })
+.then(function(message) {console.log(message.status)});
     }
-    if(trader.cool == 'Y') {    // email user
+    if(trader.cool == 'Y') {    // <- - - - - - -  EMAIL user
         // prepare email
         var mail = {
             from: "Crypto Alert <mandybot1339@gmail.com>",
@@ -220,29 +227,36 @@ function alertUserEthLow(trader) {
             if(error) { console.log(error); }
             else { console.log("Message sent to: " + response.accepted);}
         });
-
-        // reset user ethlow to null
-        setTimeout(function () {
-            var queryReset = `UPDATE trader SET ethlow=NULL WHERE email='${trader.email}';`;
-            connection.query(queryReset, function(error, rows, columns) {
-                if(error) {console.log(error); return;}     //  stop if you get errors
-                console.log('rows: ', rows);
-            })
-
-        }, 5000)
     }
+    // reset user ethlow to null
+    setTimeout(function () {
+        var queryReset = `UPDATE trader SET ethlow=NULL WHERE email='${trader.email}';`;
+        connection.query(queryReset, function(error, rows, columns) {
+            if(error) {console.log(error); return;}     //  stop if you get errors
+            console.log('rows: ', rows);
+        })
+    }, 5000)
 }
+
+
+
 
 // ALERT USER ETH HIGH()
 function alertUserEthHigh(trader) {
     console.log('alerting user about eth high: ', trader);
-        if(trader.twit_acc) {       // twit user
-        
+        if(trader.twit_acc) {       // <- - - - - - -  TWIT user
+        T.post('statuses/update', { status: `@${trader.twit_acc} Ethereum went up in price. It's over ${trader.ethhigh}` }, function(err, data, response) {
+            console.log(response.statusCode, ' ', response.statusMessage);
+        })
     }
-    if(trader.phone) {          // sms user
-        
+    if(trader.phone) {          // <- - - - - - -  SMS user
+        client.messages.create({
+            body: `${trader.first_name} Ethereum went up in price. It's over ${trader.ethhigh}`,
+            to: '+17864475287',  // Text this number
+            from: '+17865046824' // From a valid Twilio number
+        })
     }
-    if(trader.cool == 'Y') {    // email user
+    if(trader.cool == 'Y') {    // <- - - - - - -  EMAIL user
         // prepare email
         var mail = {
             from: "Crypto Alert <mandybot1339@gmail.com>",
@@ -256,28 +270,36 @@ function alertUserEthHigh(trader) {
             if(error) { console.log(error); }
             else { console.log("Message sent to: " + response.accepted);}
         });
-
-        // reset user ethhigh to null
-        setTimeout(function () {
-            var queryReset = `UPDATE trader SET ethhigh=NULL WHERE email='${trader.email}';`;
-            connection.query(queryReset, function(error, rows, columns) {
-                if(error) {console.log(error); return;}     //  stop if you get errors
-                console.log('rows: ', rows);
-            })
-        }, 5000)
     }
+    // reset user ethhigh to null
+    setTimeout(function () {
+        var queryReset = `UPDATE trader SET ethhigh=NULL WHERE email='${trader.email}';`;
+        connection.query(queryReset, function(error, rows, columns) {
+            if(error) {console.log(error); return;}     //  stop if you get errors
+            console.log('rows: ', rows);
+        })
+    }, 5000)
 }
+
+
+
 
 // ALERT USER BTC LOW()
 function alertUserBtcLow(trader) {
     console.log('alerting user about btc low: ', trader);
-    if(trader.twit_acc) {       // twit user
-        
+    if(trader.twit_acc) {       // <- - - - - - -  TWIT user
+        T.post('statuses/update', { status: `@${trader.twit_acc} Bitcoin went down in price. It's under ${trader.btclow}` }, function(err, data, response) {
+            console.log(response.statusCode, ' ', response.statusMessage);
+        })
     }
-    if(trader.phone) {          // sms user
-        
+    if(trader.phone) {          // <- - - - - - -  SMS user
+        client.messages.create({
+            body: `${trader.first_name} Bitcoin went down in price. It's under ${trader.btclow}`,
+            to: '+17864475287',  // Text this number
+            from: '+17865046824' // From a valid Twilio number
+        })
     }
-    if(trader.cool == 'Y') {    // email user
+    if(trader.cool == 'Y') {    // <- - - - - - -  EMAIL user
         // prepare email
         var mail = {
             from: "Crypto Alert <mandybot1339@gmail.com>",
@@ -291,28 +313,36 @@ function alertUserBtcLow(trader) {
             if(error) { console.log(error); }
             else { console.log("Message sent to: " + response.accepted);}
         });
-
-        // reset user btclow to null
-        setTimeout(function () {
-            var queryReset = `UPDATE trader SET btclow=NULL WHERE email='${trader.email}';`;
-            connection.query(queryReset, function(error, rows, columns) {
-                if(error) {console.log(error); return;}     //  stop if you get errors
-                console.log('rows: ', rows);
-            })
-        }, 5000)
     }
+    // reset user btclow to null
+    setTimeout(function () {
+        var queryReset = `UPDATE trader SET btclow=NULL WHERE email='${trader.email}';`;
+        connection.query(queryReset, function(error, rows, columns) {
+            if(error) {console.log(error); return;}     //  stop if you get errors
+            console.log('rows: ', rows);
+        })
+    }, 5000)
 }
+
+
+
 
 // ALERT USER BTC HIGH
 function alertUserBtcHigh(trader) {
     console.log('alerting user about btc high: ', trader);
-    if(trader.twit_acc) {       // twit user
-        
+    if(trader.twit_acc) {       // <- - - - - - -  TWIT user
+        T.post('statuses/update', { status: `@${trader.twit_acc} Bitcoin went up in price. It's over ${trader.btchigh}` }, function(err, data, response) {
+            console.log(response.statusCode, ' ', response.statusMessage);
+        })
     }
-    if(trader.phone) {          // sms user
-        
+    if(trader.phone) {          // <- - - - - - -  SMS user
+        client.messages.create({
+            body: `${trader.first_name} Bitcoin went up in price. It's over ${trader.btchigh}`,
+            to: '+17864475287',  // Text this number
+            from: '+17865046824' // From a valid Twilio number
+        })
     }
-    if(trader.cool == 'Y') {    // email user
+    if(trader.cool == 'Y') {    // <- - - - - - -  EMAIL user
         // prepare email
         var mail = {
             from: "Crypto Alert <mandybot1339@gmail.com>",
@@ -325,15 +355,14 @@ function alertUserBtcHigh(trader) {
         smtpTransport.sendMail(mail, function(error, response){
             if(error) { console.log(error); }
             else { console.log("Message sent to: " + response.accepted);}
-        });
-        
-        // reset user btchigh to null
-        setTimeout(function () {
-            var queryReset = `UPDATE trader SET btchigh=NULL WHERE email='${trader.email}';`;
-            connection.query(queryReset, function(error, rows, columns) {
-                if(error) {console.log(error); return;}     //  stop if you get errors
-                console.log('rows: ', rows);
-            })
-        }, 5000)
+        });        
     }
+    // reset user btchigh to null
+    setTimeout(function () {
+        var queryReset = `UPDATE trader SET btchigh=NULL WHERE email='${trader.email}';`;
+        connection.query(queryReset, function(error, rows, columns) {
+            if(error) {console.log(error); return;}     //  stop if you get errors
+            console.log('rows: ', rows);
+        })
+    }, 5000)
 }
